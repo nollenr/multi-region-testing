@@ -3,10 +3,15 @@ Originally built for a West SEssion Hackathon on Multi-Region
 
 - [Multi-Region Testing](#multi-region-testing)
   - [Topology](#topology)
+    - [High Level Topology](#high-level-topology)
+    - [Detail Topology](#detail-topology)
   - [ERD](#erd)
 
 ## Topology
+### High Level Topology
 ![Topology](topology.drawio.png)
+### Detail Topology
+![Topology Detail](topology-detail.drawio.png)
 
 ## ERD
 The starting Entity-Relationship-Diagram (ERD) is below.  
