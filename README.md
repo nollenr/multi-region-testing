@@ -2,10 +2,18 @@
 Originally built for a West SEssion Hackathon on Multi-Region
 
 - [Multi-Region Testing](#multi-region-testing)
+  - [Problem Statement](#problem-statement)
+    - [Setup](#setup)
+    - [Problem](#problem)
   - [Topology](#topology)
     - [High Level Topology](#high-level-topology)
     - [Detail Topology](#detail-topology)
   - [ERD](#erd)
+- [The Details](#the-details)
+  - [VPCs](#vpcs)
+  - [EC2 Instances](#ec2-instances)
+  - [Cockroach Cluster](#cockroach-cluster)
+- [Using The Abstractions](#using-the-abstractions)
 
 ## Problem Statement
 ### Setup
