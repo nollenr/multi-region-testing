@@ -1,3 +1,11 @@
+create database db_with_abstractions;
+use db_with_abstractions;
+alter database db_with_abstractions set primary region "aws-us-west-2";
+alter database db_with_abstractions add region "aws-ap-southeast-1";
+alter database db_with_abstractions add region "aws-eu-central-1";
+SET override_multi_region_zone_config = true;
+alter database db_with_abstractions configure zone using num_replicas=3;
+
 CREATE TABLE public.users (
     id UUID NOT NULL DEFAULT gen_random_uuid(),
     auth_id VARCHAR(100) NOT NULL,
@@ -17,6 +25,14 @@ CREATE TABLE public.users (
 ) locality regional by row;
 alter table users configure zone using gc.ttlseconds=5;
 
+select  partition_name,
+        parent_partition,
+        column_names,
+        index_name,
+        partition_value,
+        zone_config
+from    [show partitions from table users];
+
 CREATE TABLE public.organisations (
     id UUID NOT NULL DEFAULT gen_random_uuid(),
     name VARCHAR NOT NULL,
@@ -33,7 +49,7 @@ CREATE TABLE public.organisations (
     created_at TIMESTAMPTZ NULL DEFAULT now():::TIMESTAMPTZ,
     updated_at TIMESTAMPTZ NULL DEFAULT now():::TIMESTAMPTZ,
     CONSTRAINT organisations_pkey PRIMARY KEY (id ASC),
-    CONSTRAINT organisations_creator_fkey FOREIGN KEY (creator) REFERENCES public.users(id) ON DELETE CASCADE,
+    CONSTRAINT organisations_creator_fkey FOREIGN KEY (creator) REFERENCES public.users(id) ON DELETE CASCADE
     -- UNIQUE INDEX organisations_subdomain_key (subdomain ASC),
     -- CONSTRAINT check_min_subdomain_length CHECK (length(subdomain) >= 3:::INT8),
     -- CONSTRAINT check_workspace_type CHECK (workspace_type IN ('TEAM':::STRING, 'PERSONAL':::STRING)),
@@ -56,4 +72,5 @@ CREATE TABLE public.organisation_users (
     UNIQUE INDEX organisation_users_org_id_user_id_role_key (org_id ASC, user_id ASC, "role" ASC),
     CONSTRAINT check_role CHECK ("role" IN ('MEMBER':::STRING, 'CREATOR':::STRING, 'ADMIN':::STRING))
 );
+alter table organisation_users configure zone using gc.ttlseconds=5;
 
