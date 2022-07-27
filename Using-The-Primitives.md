@@ -104,76 +104,101 @@ select range_id, lease_holder, replicas from [show range from table users for ro
 |       136 |            3 | {2,3,4}|
 (nodes 2, 3 & 4 are all in us-west-2)
 
+___
 
 
+<br/><br/>
 
-
-
-
-
-
-
-
-
-
-
-
-
+## Create the Organisations Table
 ```
-CREATE TABLE userinfo ( 
-    region STRING       NOT NULL DEFAULT gateway_region(),
-    ku string UNIQUE,
-    data jsonb NOT NULL,
-    email string AS (Data->>'Email') STORED, 
-    PRIMARY KEY (region, ku),
-    INDEX emailindex (email) WHERE (email) IS NOT NULL,
-    FOREIGN KEY (region, KU) REFERENCES klei.userid (region, ku) MATCH FULL ON DELETE CASCADE ON UPDATE CASCADE);
+CREATE TABLE public.organisations (
+    region STRING NOT NULL DEFAULT gateway_region(),
+    id UUID NOT NULL DEFAULT gen_random_uuid(),
+    name VARCHAR NOT NULL,
+    subdomain VARCHAR(60) NOT NULL,
+    creator UUID NULL,
+    allowlisted_domains VARCHAR[] NULL,
+    workspace_type VARCHAR NOT NULL,
+    employee_count INT8 NULL DEFAULT (-1):::INT8,
+    billing_email VARCHAR NULL,
+    profile_image_id VARCHAR NULL,
+    preferences JSONB NULL,
+    pricing_plan VARCHAR NOT NULL DEFAULT 'FREE':::STRING,
+    metadata JSONB NULL,
+    created_at TIMESTAMPTZ NULL DEFAULT now():::TIMESTAMPTZ,
+    updated_at TIMESTAMPTZ NULL DEFAULT now():::TIMESTAMPTZ,
+    CONSTRAINT organisations_pkey PRIMARY KEY (region, id ASC),
+    CONSTRAINT organisations_creator_fkey FOREIGN KEY (region, creator) REFERENCES public.users(region, id) ON DELETE CASCADE
+    -- UNIQUE INDEX organisations_subdomain_key (subdomain ASC),
+    -- CONSTRAINT check_min_subdomain_length CHECK (length(subdomain) >= 3:::INT8),
+    -- CONSTRAINT check_workspace_type CHECK (workspace_type IN ('TEAM':::STRING, 'PERSONAL':::STRING)),
+    -- CONSTRAINT check_pricing_plan CHECK (pricing_plan IN ('FREE':::STRING, 'PAID':::STRING))
+) 
     PARTITION BY LIST (region) (
        PARTITION "aws-us-west-2" VALUES IN ('aws-us-west-2'),
        PARTITION "aws-ap-southeast-1" VALUES IN ('aws-ap-southeast-1'),
        PARTITION "aws-eu-central-1" VALUES IN ('aws-eu-central-1')
     );
-
-ALTER PARTITION "aws-us-west-2" OF INDEX userinfo@userinfo_pkey CONFIGURE ZONE USING
+ALTER PARTITION "aws-us-west-2" OF INDEX organisations@organisations_pkey CONFIGURE ZONE USING
     constraints = '[+region=aws-us-west-2]';
-ALTER PARTITION "aws-ap-southeast-1" OF INDEX userinfo@userinfo_pkey CONFIGURE ZONE USING
+ALTER PARTITION "aws-ap-southeast-1" OF INDEX organisations@organisations_pkey CONFIGURE ZONE USING
     constraints = '[+region=aws-ap-southeast-1]';
-ALTER PARTITION "aws-eu-central-1" OF INDEX userinfo@userinfo_pkey CONFIGURE ZONE USING
-    constraints = '[+region=aws-eu-central-1]'
+ALTER PARTITION "aws-eu-central-1" OF INDEX organisations@organisations_pkey CONFIGURE ZONE USING
+    constraints = '[+region=aws-eu-central-1]';
+alter table organisations configure zone using gc.ttlseconds=5;
 ```
 
+The partitions of the organisations table:
 ```
-CREATE TABLE UserID (
-    KU string,
-    Region string NOT NULL,
-    SteamID decimal,
-    PSNID string,
-    RailCommonID string,
-    GoogleLogin string,
-    XboxID string,
-    EpicID string,
-    NintendoAccountID string,
-    NintendoSAID string,
-    DouyuID string,
-    BilibiliID string,
-    PRIMARY KEY (KU ASC),
-    UNIQUE INDEX (Region, KU),
-    UNIQUE INDEX SteamIDIndex (SteamID ASC) WHERE SteamID IS NOT NULL,
-    UNIQUE INDEX PSNIDIndex (PSNID ASC) WHERE PSNID IS NOT NULL,
-    UNIQUE INDEX RailCommonIDIndex (RailCommonID ASC) WHERE RailCommonID IS NOT NULL,
-    UNIQUE INDEX GoogleLoginIndex (GoogleLogin ASC) WHERE GoogleLogin IS NOT NULL,
-    UNIQUE INDEX XboxIDIndex (XboxID ASC) WHERE XboxID IS NOT NULL,
-    UNIQUE INDEX EpicIDIndex (EpicID ASC) WHERE EpicID IS NOT NULL,
-    UNIQUE INDEX NintendoAccountIDIndex (NintendoAccountID ASC) WHERE NintendoAccountID IS NOT NULL,
-    UNIQUE INDEX NintendoSAIDIndex (NintendoSAID ASC) WHERE NintendoSAID IS NOT NULL,
-    UNIQUE INDEX DouyuIDIndex (DouyuID ASC) WHERE DouyuID IS NOT NULL,
-    UNIQUE INDEX BilibiliIDIndex (BilibiliID ASC) WHERE BilibiliID IS NOT NULL
-);
+select  partition_name,
+        parent_partition,
+        column_names,
+        index_name,
+        partition_value,
+        zone_config
+from    [show partitions from table organisations];
+```
 
-CREATE UNIQUE INDEX ku_east1 ON userid(region, ku) ;
-CREATE UNIQUE INDEX ku_eu2 ON userid(region, ku) ;
-And then I alter these indexes so that their lease holder replicas are located in us-east-1 and eu-west-2.
-ALTER index userid@ku_east1 configure zone using num_replicas=3, constraints=‘{“+region=us-east-1”:1}‘, lease_preferences=‘[[+region=us-east-1]]‘;
-ALTER index userid@ku_eu2 configure zone using num_replicas=3, constraints=‘{“+region=eu-west-2":1}‘, lease_preferences=‘[[+region=eu-west-2]]’;
+|    partition_name   | parent_partition | column_names |            index_name            |    partition_value     |                 zone_config|
+|---------------------|------------------|--------------|----------------------------------|------------------------|-----------------------------------------------|
+|  aws-us-west-2      | NULL             | region       | organisations@organisations_pkey | ('aws-us-west-2')      | constraints = '[+region=aws-us-west-2]'|
+|  aws-ap-southeast-1 | NULL             | region       | organisations@organisations_pkey | ('aws-ap-southeast-1') | constraints = '[+region=aws-ap-southeast-1]'|
+|  aws-eu-central-1   | NULL             | region       | organisations@organisations_pkey | ('aws-eu-central-1')   | constraints = '[+region=aws-eu-central-1]'|
+
+### Review the 'INSERT' Explain Plan
+```
+explain INSERT INTO public.organisations (id,"name",subdomain,creator,allowlisted_domains,workspace_type,employee_count,billing_email,profile_image_id,preferences,pricing_plan,metadata,created_at,updated_at) VALUES ('8636aaaa-f6e7-4e85-8a23-f8c8003bf805','adsfadf','fhapdfion','2a231114-fd02-4e8c-bc9e-95fd5c132b96',NULL,'TEAM',8,'asdfa3@gmail.com',NULL,NULL,'FREE',NULL,'2022-06-07 11:31:29.723805-07','2022-06-07 11:31:29.723805-07');
+
+                                                                                                       info
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+  distribution: local
+  vectorized: true
+
+  • insert fast path
+    into: organisations(region, id, name, subdomain, creator, allowlisted_domains, workspace_type, employee_count, billing_email, profile_image_id, preferences, pricing_plan, metadata, created_at, updated_at)
+    auto commit
+    FK check: users@users_pk_aps1
+    size: 15 columns, 1 row
 
 ```
+
+### Run the Insert
+```
+INSERT INTO public.organisations (id,"name",subdomain,creator,allowlisted_domains,workspace_type,employee_count,billing_email,profile_image_id,preferences,pricing_plan,metadata,created_at,updated_at) VALUES ('8636aaaa-f6e7-4e85-8a23-f8c8003bf805','adsfadf','fhapdfion','2a231114-fd02-4e8c-bc9e-95fd5c132b96',NULL,'TEAM',8,'asdfa3@gmail.com',NULL,NULL,'FREE',NULL,'2022-06-07 11:31:29.723805-07','2022-06-07 11:31:29.723805-07');
+
+INSERT 1
+
+Time: 171ms total (execution 170ms / network 1ms)
+```
+
+### Review Location of the Ranges for this Row
+```
+select range_id, lease_holder, replicas from [show range from table organisations for row('aws-us-west-2','8636aaaa-f6e7-4e85-8a23-f8c8003bf805')];
+```
+
+
+|  range_id | lease_holder | replicas|
+|-----------|--------------|-----------|
+|       166 |            2 | {2,3,4}|
+
+
