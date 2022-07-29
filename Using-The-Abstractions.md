@@ -150,7 +150,7 @@ CREATE TABLE public.organisations (
     created_at TIMESTAMPTZ NULL DEFAULT now():::TIMESTAMPTZ,
     updated_at TIMESTAMPTZ NULL DEFAULT now():::TIMESTAMPTZ,
     CONSTRAINT organisations_pkey PRIMARY KEY (id ASC),
-    CONSTRAINT organisations_creator_fkey FOREIGN KEY (creator) REFERENCES public.users(id) ON DELETE CASCADE
+    CONSTRAINT organisations_creator_fkey FOREIGN KEY (crdb_region, creator) REFERENCES public.users(crdb_region, id) ON DELETE CASCADE
     -- UNIQUE INDEX organisations_subdomain_key (subdomain ASC),
     -- CONSTRAINT check_min_subdomain_length CHECK (length(subdomain) >= 3:::INT8),
     -- CONSTRAINT check_workspace_type CHECK (workspace_type IN ('TEAM':::STRING, 'PERSONAL':::STRING)),
